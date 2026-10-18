@@ -3,7 +3,7 @@
    Інтерфейс: стан, черга синхронізації, рендер, форми.
    ========================================================================== */
 
-const APP_VERSION = '1.2.1';
+const APP_VERSION = self.APP_VERSION || '?';
 const DEMO = !!CONFIG.DEMO || new URLSearchParams(location.search).has('demo');
 const CUR_SYM = { UAH: '₴', USD: '$', EUR: '€', PLN: 'zł', GBP: '£', CHF: '₣', CZK: 'Kč' };
 
@@ -30,7 +30,40 @@ const money = (n, cur) => NF.format(n || 0) + ' ' + sym(cur);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const walletBy = (name) => S.wallets.find((w) => w.name === name);
 const curOf = (name) => walletBy(name)?.currency || CONFIG.DEFAULT_CURRENCY;
-const numToInput = (n) => (n == null || n === '' ? '' : String(n).replace('.', ','));
+const numToInput = (n) => (n == null || n === '' ? '' : groupNumber(String(n).replace('.', ',')));
+
+/* Розбиття великих чисел на групи по 3 цифри: 1234567,5 → «1 234 567,5».
+   Працює і у виразах: «12000+3500» → «12 000+3 500». */
+function groupNumber(raw) {
+  return String(raw).replace(/[\s\u00a0]/g, '')
+    .replace(/(\d+)([.,]\d*)?/g, (m, int, frac = '') => int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + frac);
+}
+// Форматує поле під час введення, не збиваючи курсор
+function liveGroup(input) {
+  const v = input.value;
+  const pos = input.selectionStart ?? v.length;
+  const before = v.slice(0, pos).replace(/\s/g, '').length;
+  const nv = groupNumber(v);
+  if (nv === v) return;
+  input.value = nv;
+  let i = 0, c = 0;
+  while (i < nv.length && c < before) { if (!/\s/.test(nv[i])) c++; i++; }
+  try { input.setSelectionRange(i, i); } catch { /* ignore */ }
+}
+function bindGrouping(input, after) {
+  // Backspace перед пробілом-розділювачем видаляє цифру, а не пробіл
+  input.addEventListener('beforeinput', (e) => {
+    if (e.inputType !== 'deleteContentBackward') return;
+    const p = input.selectionStart;
+    if (p !== input.selectionEnd || p < 2 || input.value[p - 1] !== ' ') return;
+    e.preventDefault();
+    input.value = input.value.slice(0, p - 2) + input.value.slice(p - 1);
+    input.setSelectionRange(p - 2, p - 2);
+    liveGroup(input);
+    after?.();
+  });
+  input.addEventListener('input', () => { liveGroup(input); after?.(); });
+}
 
 function dayLabel(iso) {
   const today = U.todayIso();
@@ -549,7 +582,15 @@ function openSettings() {
         <button class="btn ghost" data-act="switch">Інша таблиця / створити нову</button>
         <button class="btn ghost danger-text" data-act="logout">Вийти з акаунта</button>`}
     </section>
-    <p class="ver">Версія ${APP_VERSION} · записів: ${S.txns.length} · у черзі: ${Sync.queue.length}</p>`;
+    <section class="set-sec">
+      <h3>Про додаток</h3>
+      <div class="about">
+        <div class="about-head"><b>MoneyControl</b><span class="tag">v${esc(APP_VERSION)}</span></div>
+        <ul class="changes">${(self.APP_CHANGELOG || []).slice(0, 5).map(([v, t]) =>
+          `<li><b>${esc(v)}</b> — ${esc(t)}</li>`).join('')}</ul>
+      </div>
+    </section>
+    <p class="ver">Версія ${esc(APP_VERSION)} · записів: ${S.txns.length} · у черзі: ${Sync.queue.length}</p>`;
   openPanel($('#settingsSheet'));
 }
 
@@ -756,7 +797,9 @@ function bindUI() {
   $$('#txForm input[name=type]').forEach((r) => { r.onchange = updateTxForm; });
   $('#fWallet').onchange = () => { updateTxForm(); updateAmountHint(); };
   $('#fToWallet').onchange = updateTxForm;
-  $('#fAmount').oninput = updateAmountHint;
+  bindGrouping($('#fAmount'), updateAmountHint);
+  bindGrouping($('#fToAmount'));
+  bindGrouping($('#wInitial'));
   $('#fAmount').onblur = () => {
     const raw = $('#fAmount').value;
     const v = evalAmount(raw);
@@ -806,6 +849,8 @@ function bindUI() {
 /* --------------------------------- старт --------------------------------- */
 function start() {
   bindUI();
+  $('#setVer').textContent = 'v' + APP_VERSION;
+  $('#loginVer').textContent = 'Версія ' + APP_VERSION;
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }

@@ -25,6 +25,7 @@
         Увійти через Google
       </button>
       <p id="loginError" class="error-text" hidden></p>
+      <p class="ver" id="loginVer"></p>
       <p id="loginWarn" class="warn-box" hidden>У файлі <code>js/config.js</code> не вказано <code>CLIENT_ID</code>. Дивіться README.md. Інтерфейс можна спробувати в <a href="?demo=1">демо-режимі</a>.</p>
     </div>
   </section>
@@ -132,7 +133,7 @@
 
   <div id="settingsSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle" hidden>
     <div class="sheet-grip"></div>
-    <div class="sheet-head"><h2 id="setTitle">Налаштування</h2><button class="icon-btn" data-close aria-label="Закрити">✕</button></div>
+    <div class="sheet-head"><h2 id="setTitle">Налаштування <small id="setVer" class="head-ver"></small></h2><button class="icon-btn" data-close aria-label="Закрити">✕</button></div>
     <div id="settingsBody"></div>
   </div>
 
@@ -156,6 +157,7 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+  <script src="js/version.js"></script>
   <script src="js/config.js"></script>
   <script src="js/backend.js"></script>
   <script src="js/app.js"></script>

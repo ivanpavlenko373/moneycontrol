@@ -1,9 +1,10 @@
 // Service worker: кешує оболонку додатку, щоб він відкривався без інтернету.
-// Запити до Google API не кешуються. При оновленні файлів змініть VERSION.
-const VERSION = 'v1.2.1';
+// Запити до Google API не кешуються. Версія береться з js/version.js.
+importScripts('js/version.js');
+const VERSION = 'v' + self.APP_VERSION;
 const CACHE = 'moneycontrol-' + VERSION;
 const SHELL = [
-  './', 'index.html', 'css/app.css', 'js/config.js', 'js/backend.js', 'js/app.js',
+  './', 'index.html', 'css/app.css', 'js/version.js', 'js/config.js', 'js/backend.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

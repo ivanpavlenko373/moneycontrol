@@ -2,7 +2,7 @@
 window.CONFIG = {
   // OAuth Client ID типу "Web application" з Google Cloud Console
   // приклад: '1234567890-abcdefg.apps.googleusercontent.com'
-  CLIENT_ID: '',
+  CLIENT_ID: '1051817506899-bhqln3hn0orh0esolc67nas5apbt82f9.apps.googleusercontent.com',
 
   // true — працювати без Google, дані лише в браузері (для перевірки інтерфейсу).
   // Також можна відкрити додаток з параметром ?demo=1

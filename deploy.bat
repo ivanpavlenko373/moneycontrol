@@ -8,7 +8,9 @@ rem ======================================================================
 setlocal EnableExtensions
 cd /d "%~dp0"
 
-set "REPO_URL=https://github.com/ivanpavlenko373/moneycontrol.git"
+set "GH_USER=ivanpavlenko373"
+rem username in URL makes Git Credential Manager use exactly this account
+set "REPO_URL=https://%GH_USER%@github.com/ivanpavlenko373/moneycontrol.git"
 set "OWNER_REPO=ivanpavlenko373/moneycontrol"
 set "PAGES_URL=https://ivanpavlenko373.github.io/moneycontrol/"
 set "ORIGIN_URL=https://ivanpavlenko373.github.io"
@@ -75,6 +77,8 @@ echo [4/5] Pushing to GitHub - a browser window may open for sign-in...
 git push -u origin main
 if not errorlevel 1 goto :pushed
 echo.
+git ls-remote origin >nul 2>nul
+if errorlevel 1 goto :access_problem
 echo [INFO] Push rejected - remote has commits that are not here. Merging them...
 git pull origin main --allow-unrelated-histories --no-edit || goto :fail
 git push -u origin main || goto :fail
@@ -121,6 +125,18 @@ echo ==================================================================
 echo.
 pause
 exit /b 0
+
+:access_problem
+echo [ERROR] GitHub answers "Repository not found" for %OWNER_REPO%.
+echo         The repo exists, so Git is most likely signed in as ANOTHER GitHub
+echo         account - for example a work account saved on this PC.
+echo.
+echo  Fix:
+echo   1. See saved accounts:     git credential-manager github list
+echo   2. Remove the wrong one:   git credential-manager github logout ^<account^>
+echo      or delete "git:https://github.com" in Windows Credential Manager.
+echo   3. Run deploy.bat again and sign in as %GH_USER% in the browser.
+goto :fail
 
 :fail
 echo.

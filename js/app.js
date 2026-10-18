@@ -832,6 +832,13 @@ function bindUI() {
 
 /* --------------------------------- старт --------------------------------- */
 function start() {
+  // Якщо відкрили «неточну» адресу (/MoneyControl, /index.html, без слеша) —
+  // переходимо на канонічну, інакше Google відповість redirect_uri_mismatch.
+  const canon = Auth.canonicalPath();
+  if (!CONFIG.REDIRECT_URI && location.pathname !== canon) {
+    location.replace(location.origin + canon + location.search + location.hash);
+    return;
+  }
   // Захист від вбудовування в чужий сайт (clickjacking)
   if (window.top !== window.self) {
     document.body.innerHTML = '';

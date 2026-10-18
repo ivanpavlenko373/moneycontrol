@@ -134,8 +134,15 @@ const Auth = {
   getToken() { return this.token && Date.now() < this.exp - 30000 ? this.token : null; },
   invalidate() { this.token = null; this.exp = 0; this.save(); },
 
+  // Канонічний шлях додатку: без index.html, з кінцевим «/», малими літерами.
+  // Саме ця адреса має бути в Authorized redirect URIs.
+  canonicalPath() {
+    let p = location.pathname.replace(/index\.html$/i, '');
+    if (!p.endsWith('/')) p += '/';
+    return p.toLowerCase();
+  },
   redirectUri() {
-    return CONFIG.REDIRECT_URI || (location.origin + location.pathname.replace(/index\.html$/, ''));
+    return CONFIG.REDIRECT_URI || (location.origin + this.canonicalPath());
   },
 
   // Переходить на сторінку входу Google. intent — що робити після повернення: 'setup' | 'resume'

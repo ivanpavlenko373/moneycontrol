@@ -44,7 +44,7 @@ body {
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
 }
-body.no-scroll { overflow: hidden; }
+body.no-scroll { overflow: hidden; position: fixed; left: 0; right: 0; width: 100%; }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }
 code { font-size: .9em; }
@@ -186,15 +186,14 @@ code { font-size: .9em; }
 /* ---------------- sheets ---------------- */
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 20; animation: fade .2s; }
 .sheet {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-width: 640px; margin: 0 auto;
-  background: var(--bg); border-radius: 22px 22px 0 0; max-height: 94dvh; overflow-y: auto;
-  padding: 0 16px calc(16px + var(--safe-b)); animation: up .22s cubic-bezier(.2,.8,.2,1);
-  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
-  transition: bottom .15s ease, max-height .15s ease;
+  /* На телефоні — повноекранна сторінка: клавіатура не змушує її стрибати */
+  position: fixed; inset: 0; z-index: 21; max-width: 640px; margin: 0 auto;
+  background: var(--bg); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: var(--safe-t) 16px calc(24px + var(--safe-b)); animation: fade .15s ease-out;
 }
 @keyframes up { from { transform: translateY(100%); } }
 @keyframes fade { from { opacity: 0; } }
-.sheet-grip { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 8px auto 2px; }
+.sheet-grip { display: none; width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 8px auto 2px; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--bg); padding: 6px 0; z-index: 2; }
 .sheet-head h2 { margin: 0; font-size: 20px; }
 .sheet form { display: flex; flex-direction: column; gap: 12px; }
@@ -235,7 +234,7 @@ code { font-size: .9em; }
 .suggest li.active, .suggest li:active { background: var(--accent-soft); }
 .suggest mark { background: transparent; color: var(--accent); font-weight: 700; }
 
-.form-actions { display: flex; gap: 10px; margin-top: 4px; position: sticky; bottom: 0; background: var(--bg); padding: 8px 0 2px; }
+.form-actions { display: flex; gap: 10px; margin-top: 8px; }
 .check { display: flex; align-items: center; gap: 10px; font-size: 15px; padding: 4px 0; }
 .check input { width: 20px; height: 20px; accent-color: var(--accent); }
 
@@ -260,7 +259,8 @@ code { font-size: .9em; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 @media (min-width: 700px) {
-  .sheet { bottom: auto; top: 6vh; border-radius: 22px; max-height: 88vh; box-shadow: var(--shadow); }
+  .sheet { inset: auto 0 auto 0; top: 6vh; border-radius: 22px; max-height: 88vh; box-shadow: var(--shadow); animation: up .22s cubic-bezier(.2,.8,.2,1); }
+  .sheet-grip { display: block; }
   @keyframes up { from { transform: translateY(30px); opacity: 0; } }
 }
 
@@ -271,3 +271,6 @@ code { font-size: .9em; }
 .changes { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
 .changes b { color: var(--text); }
 .about .tag { text-transform: none; font-size: 12px; }
+.sheet-head { padding: 10px 0; gap: 8px; }
+.sheet-head h2 { flex: 1; }
+#txSheet .sheet-head h2 { text-align: center; font-size: 18px; }

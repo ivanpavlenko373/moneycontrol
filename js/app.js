@@ -121,41 +121,30 @@ function openPanel(el) {
   $('#backdrop').hidden = false;
   el.hidden = false;
   el.scrollTop = 0;
-  document.body.classList.add('no-scroll');
-  fitSheet();
+  lockBody();
   if (!history.state?.panel) history.pushState({ panel: 1 }, '');
 }
 
-/* iOS не зменшує сторінку під клавіатуру, а зсуває її — тоді верх панелі ховається.
-   Тримаємо відкриту панель строго в межах видимої області (над клавіатурою). */
-function fitSheet() {
-  const s = document.querySelector('.sheet:not([hidden])');
-  if (!s) return;
-  const vv = window.visualViewport;
-  if (!vv || window.innerWidth >= 700) { s.style.bottom = ''; s.style.maxHeight = ''; return; }
-  const bottomGap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-  s.style.bottom = bottomGap + 'px';
-  s.style.maxHeight = Math.max(200, vv.height - 12) + 'px';
+/* Фіксуємо сторінку під відкритою панеллю: на iOS при появі клавіатури
+   браузер інакше прокручує фон, і інтерфейс «смикається». */
+let lockedY = 0;
+function lockBody() {
+  if (document.body.classList.contains('no-scroll')) return;
+  lockedY = window.scrollY;
+  document.body.style.top = -lockedY + 'px';
+  document.body.classList.add('no-scroll');
 }
-function keepFocusedVisible(e) {
-  const sheet = e.target.closest?.('.sheet');
-  if (!sheet || !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-  const el = e.target.closest('.field') || e.target;
-  // чекаємо, поки клавіатура відкриється і panel змінить розмір
-  setTimeout(() => {
-    fitSheet();
-    const r = el.getBoundingClientRect(), sr = sheet.getBoundingClientRect();
-    const head = sheet.querySelector('.sheet-head')?.offsetHeight || 0;
-    if (r.top < sr.top + head + 4 || r.bottom > sr.bottom - 70) {
-      sheet.scrollTop += r.top - sr.top - head - 12;
-    }
-  }, 320);
+function unlockBody() {
+  if (!document.body.classList.contains('no-scroll')) return;
+  document.body.classList.remove('no-scroll');
+  document.body.style.top = '';
+  window.scrollTo(0, lockedY);
 }
 function hidePanels() {
   $$('.sheet').forEach((s) => { s.hidden = true; });
   $('#backdrop').hidden = true;
   $('#contactSug').hidden = true;
-  document.body.classList.remove('no-scroll');
+  unlockBody();
 }
 function closePanels() {
   if (history.state?.panel) history.back(); // popstate сховає панелі
@@ -785,11 +774,6 @@ function bindUI() {
   $('#backdrop').onclick = closePanels;
   $$('[data-close]').forEach((b) => { b.onclick = closePanels; });
   window.addEventListener('popstate', hidePanels);
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', fitSheet);
-    window.visualViewport.addEventListener('scroll', fitSheet);
-  }
-  document.addEventListener('focusin', keepFocusedVisible);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#backdrop').hidden) closePanels(); });
 
   $('#txForm').onsubmit = saveTx;

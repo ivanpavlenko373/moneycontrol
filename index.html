@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#0f766e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -92,7 +92,7 @@
 
   <div id="txSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="txTitle" hidden>
     <div class="sheet-grip"></div>
-    <div class="sheet-head"><h2 id="txTitle">Новий запис</h2><button class="icon-btn" data-close aria-label="Закрити">✕</button></div>
+    <div class="sheet-head"><button class="icon-btn" data-close aria-label="Закрити">✕</button><h2 id="txTitle">Новий запис</h2><button type="submit" form="txForm" class="btn small primary">Зберегти</button></div>
     <form id="txForm" autocomplete="off" novalidate>
       <div class="seg" role="radiogroup">
         <input type="radio" name="type" id="tOut" value="out"><label for="tOut">Витрата</label>

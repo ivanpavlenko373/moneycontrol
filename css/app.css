@@ -274,3 +274,15 @@ code { font-size: .9em; }
 .sheet-head { padding: 10px 0; gap: 8px; }
 .sheet-head h2 { flex: 1; }
 #txSheet .sheet-head h2 { text-align: center; font-size: 18px; }
+
+/* 1.2.5 — фіксована верхня стрічка панелей на телефоні */
+@media (max-width: 699px) {
+  .sheet { padding-top: calc(var(--safe-t) + 64px); }
+  .sheet-head {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 23; max-width: 640px; margin: 0 auto;
+    padding: calc(var(--safe-t) + 8px) 16px 8px; min-height: calc(var(--safe-t) + 60px);
+    background: var(--bg); border-bottom: 1px solid var(--line);
+    will-change: transform;
+  }
+  .sheet input, .sheet textarea, .sheet select { scroll-margin-top: 80px; }
+}

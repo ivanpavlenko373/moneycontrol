@@ -128,6 +128,20 @@ function openPanel(el) {
 /* Фіксуємо сторінку під відкритою панеллю: на iOS при появі клавіатури
    браузер інакше прокручує фон, і інтерфейс «смикається». */
 let lockedY = 0;
+/* На iOS при відкритій клавіатурі браузер зсуває видиму область, і навіть
+   position:fixed їде вгору. Тримаємо верхню стрічку панелі в межах видимої області. */
+let pinRaf = 0;
+function pinSheetHead() {
+  cancelAnimationFrame(pinRaf);
+  pinRaf = requestAnimationFrame(() => {
+    const head = document.querySelector('.sheet:not([hidden]) .sheet-head');
+    if (!head) return;
+    const vv = window.visualViewport;
+    const off = vv && window.innerWidth < 700 ? Math.max(0, Math.round(vv.offsetTop)) : 0;
+    head.style.transform = off ? `translateY(${off}px)` : '';
+  });
+}
+
 function lockBody() {
   if (document.body.classList.contains('no-scroll')) return;
   lockedY = window.scrollY;
@@ -774,6 +788,10 @@ function bindUI() {
   $('#backdrop').onclick = closePanels;
   $$('[data-close]').forEach((b) => { b.onclick = closePanels; });
   window.addEventListener('popstate', hidePanels);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', pinSheetHead);
+    window.visualViewport.addEventListener('scroll', pinSheetHead);
+  }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#backdrop').hidden) closePanels(); });
 
   $('#txForm').onsubmit = saveTx;

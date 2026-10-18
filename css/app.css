@@ -278,3 +278,5 @@ code { font-size: .9em; }
 /* червона кнопка закриття форми запису — в стилі кнопки «Зберегти» */
 .btn.cancel { background: var(--danger); color: #fff; box-shadow: none; min-width: 46px; font-size: 18px; line-height: 1; }
 @media (prefers-color-scheme: dark) { .btn.cancel { color: #2a0b0b; } }
+
+.grow-text { flex: 1; text-align: left; }

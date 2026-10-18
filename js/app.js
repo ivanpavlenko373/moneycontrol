@@ -26,7 +26,7 @@ const S = {
 /* ------------------------------ форматування ----------------------------- */
 const NF = new Intl.NumberFormat('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const sym = (cur) => CUR_SYM[cur] || cur || '';
-const money = (n, cur) => NF.format(n || 0) + ' ' + sym(cur);
+const money = (n, cur) => NF.format(n || 0) + ' ' + esc(sym(cur));
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const walletBy = (name) => S.wallets.find((w) => w.name === name);
 const curOf = (name) => walletBy(name)?.currency || CONFIG.DEFAULT_CURRENCY;
@@ -687,7 +687,7 @@ async function goSetup() {
     $('#setupEmail').textContent = Auth.email;
     const files = await Drive.find();
     $('#setupList').innerHTML = files.map((f) => `
-      <button class="btn" data-sheet="${esc(f.id)}"><span style="flex:1">${esc(f.name)}</span>
+      <button class="btn" data-sheet="${esc(f.id)}"><span class="grow-text">${esc(f.name)}</span>
       <small class="muted">${new Date(f.modifiedTime).toLocaleDateString('uk-UA')}</small></button>`).join('');
     $('#setupExisting').hidden = !files.length;
     setupBusy(null);
@@ -832,6 +832,12 @@ function bindUI() {
 
 /* --------------------------------- старт --------------------------------- */
 function start() {
+  // Захист від вбудовування в чужий сайт (clickjacking)
+  if (window.top !== window.self) {
+    document.body.innerHTML = '';
+    try { window.top.location = window.self.location.href; } catch { /* ignore */ }
+    return;
+  }
   bindUI();
   $('#setVer').textContent = 'v' + APP_VERSION;
   $('#loginVer').textContent = 'Версія ' + APP_VERSION;

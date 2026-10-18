@@ -109,7 +109,7 @@ const Rows = {
     if (!name) return null;
     return {
       name,
-      currency: (U.str(r[1]) || CONFIG.DEFAULT_CURRENCY).toUpperCase(),
+      currency: (U.str(r[1]).replace(/[^A-Za-zА-Яа-яІіЇїЄєҐґ$€₴£]/g, '').slice(0, 5) || CONFIG.DEFAULT_CURRENCY).toUpperCase(),
       initial: U.num(r[2]),
       archived: /^(так|yes|true|1|x|\+)$/i.test(U.str(r[4])),
       created: typeof r[5] === 'number' ? U.serialToMs(r[5]) : 0,

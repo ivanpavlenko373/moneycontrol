@@ -124,54 +124,62 @@ const Rows = {
 };
 
 /* ------------------------------ авторизація ------------------------------ */
+/* OAuth 2.0 через перенаправлення сторінки (без popup) — надійно працює на iOS/Android,
+   у режимі «на головному екрані» і при відкритті посилань з месенджерів. */
 const Auth = {
-  token: null, exp: 0, email: '', client: null,
+  token: null, exp: 0, email: '',
 
   load() { Object.assign(this, LS.get('ms_auth', {})); },
   save() { LS.set('ms_auth', { token: this.token, exp: this.exp, email: this.email }); },
   getToken() { return this.token && Date.now() < this.exp - 30000 ? this.token : null; },
   invalidate() { this.token = null; this.exp = 0; this.save(); },
 
-  async ready() {
-    for (let i = 0; i < 150; i++) {
-      if (window.google?.accounts?.oauth2) return;
-      await sleep(100);
+  redirectUri() {
+    return CONFIG.REDIRECT_URI || (location.origin + location.pathname.replace(/index\.html$/, ''));
+  },
+
+  // Переходить на сторінку входу Google. intent — що робити після повернення: 'setup' | 'resume'
+  signIn(intent = 'resume') {
+    if (!CONFIG.CLIENT_ID) return Promise.reject(new Error('Не вказано CLIENT_ID у js/config.js'));
+    const state = U.uid('s');
+    LS.set('ms_oauth', { state, intent, ts: Date.now() });
+    const p = new URLSearchParams({
+      client_id: CONFIG.CLIENT_ID,
+      redirect_uri: this.redirectUri(),
+      response_type: 'token',
+      scope: SCOPE,
+      include_granted_scopes: 'true',
+      state,
+    });
+    if (this.email) p.set('login_hint', this.email);
+    else p.set('prompt', 'select_account');
+    location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + p.toString());
+    return new Promise(() => {}); // сторінка йде на Google
+  },
+
+  // Викликається при старті: забирає токен з #access_token=... після повернення від Google
+  handleRedirect() {
+    const hash = location.hash.slice(1);
+    if (!/(^|&)(access_token|error)=/.test(hash)) return null;
+    const h = new URLSearchParams(hash);
+    history.replaceState(null, '', location.pathname + location.search);
+    const saved = LS.get('ms_oauth', null);
+    LS.del('ms_oauth');
+    if (!saved || saved.state !== h.get('state')) return { error: 'Не вдалося завершити вхід, спробуйте ще раз' };
+    if (h.get('error')) return { error: h.get('error') === 'access_denied' ? 'Вхід скасовано' : 'Помилка входу: ' + h.get('error'), intent: saved.intent };
+    if (!(h.get('scope') || '').includes('drive.file')) {
+      return { error: 'Потрібно дозволити доступ до файлів, створених додатком', intent: saved.intent };
     }
-    throw new Error('Не вдалося завантажити Google Identity Services. Перевірте інтернет.');
-  },
-
-  init() {
-    if (this.client || !CONFIG.CLIENT_ID) return;
-    this.client = google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.CLIENT_ID, scope: SCOPE, callback: () => {},
-    });
-  },
-
-  // ВАЖЛИВО: викликати синхронно з обробника кліку (інакше браузер блокує popup)
-  signIn() {
-    return new Promise((resolve, reject) => {
-      if (!CONFIG.CLIENT_ID) { reject(new Error('Не вказано CLIENT_ID у js/config.js')); return; }
-      if (!this.client) { reject(new Error('Google ще завантажується, спробуйте за секунду')); return; }
-      this.client.callback = (r) => {
-        if (r.error) { reject(new Error(r.error_description || r.error)); return; }
-        if (!google.accounts.oauth2.hasGrantedAllScopes(r, SCOPE)) {
-          reject(new Error('Потрібно дозволити доступ до файлів, створених додатком'));
-          return;
-        }
-        this.token = r.access_token;
-        this.exp = Date.now() + (Number(r.expires_in) || 3600) * 1000;
-        this.save();
-        resolve();
-      };
-      this.client.error_callback = (e) =>
-        reject(new Error(e?.type === 'popup_closed' ? 'Вікно входу закрито' :
-          e?.type === 'popup_failed_to_open' ? 'Браузер заблокував вікно входу' : (e?.message || e?.type || 'Помилка входу')));
-      this.client.requestAccessToken({ prompt: this.email ? '' : 'select_account', login_hint: this.email || undefined });
-    });
+    this.token = h.get('access_token');
+    this.exp = Date.now() + (Number(h.get('expires_in')) || 3600) * 1000;
+    this.save();
+    return { intent: saved.intent };
   },
 
   signOut() {
-    try { if (this.token && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(this.token, () => {}); } catch { /* ignore */ }
+    if (this.token) {
+      fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(this.token), { method: 'POST', mode: 'no-cors' }).catch(() => {});
+    }
     this.token = null; this.exp = 0; this.email = '';
     this.save();
   },

@@ -8,6 +8,11 @@ window.CONFIG = {
   // Також можна відкрити додаток з параметром ?demo=1
   DEMO: false,
 
+  // Адреса повернення після входу Google. Порожньо — поточна адреса сторінки
+  // (https://ivanpavlenko373.github.io/moneycontrol/). Вона ж має бути в
+  // Authorized redirect URIs OAuth-клієнта в Google Cloud Console.
+  REDIRECT_URI: '',
+
   DEFAULT_CURRENCY: 'UAH',
   CURRENCIES: ['UAH', 'USD', 'EUR', 'PLN', 'GBP'],
 

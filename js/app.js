@@ -3,7 +3,7 @@
    Інтерфейс: стан, черга синхронізації, рендер, форми.
    ========================================================================== */
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.1';
 const DEMO = !!CONFIG.DEMO || new URLSearchParams(location.search).has('demo');
 const CUR_SYM = { UAH: '₴', USD: '$', EUR: '€', PLN: 'zł', GBP: '£', CHF: '₣', CZK: 'Kč' };
 
@@ -89,7 +89,34 @@ function openPanel(el) {
   el.hidden = false;
   el.scrollTop = 0;
   document.body.classList.add('no-scroll');
+  fitSheet();
   if (!history.state?.panel) history.pushState({ panel: 1 }, '');
+}
+
+/* iOS не зменшує сторінку під клавіатуру, а зсуває її — тоді верх панелі ховається.
+   Тримаємо відкриту панель строго в межах видимої області (над клавіатурою). */
+function fitSheet() {
+  const s = document.querySelector('.sheet:not([hidden])');
+  if (!s) return;
+  const vv = window.visualViewport;
+  if (!vv || window.innerWidth >= 700) { s.style.bottom = ''; s.style.maxHeight = ''; return; }
+  const bottomGap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  s.style.bottom = bottomGap + 'px';
+  s.style.maxHeight = Math.max(200, vv.height - 12) + 'px';
+}
+function keepFocusedVisible(e) {
+  const sheet = e.target.closest?.('.sheet');
+  if (!sheet || !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  const el = e.target.closest('.field') || e.target;
+  // чекаємо, поки клавіатура відкриється і panel змінить розмір
+  setTimeout(() => {
+    fitSheet();
+    const r = el.getBoundingClientRect(), sr = sheet.getBoundingClientRect();
+    const head = sheet.querySelector('.sheet-head')?.offsetHeight || 0;
+    if (r.top < sr.top + head + 4 || r.bottom > sr.bottom - 70) {
+      sheet.scrollTop += r.top - sr.top - head - 12;
+    }
+  }, 320);
 }
 function hidePanels() {
   $$('.sheet').forEach((s) => { s.hidden = true; });
@@ -540,9 +567,7 @@ async function onSettingsClick(e) {
   if (act === 'switch') {
     if (Sync.queue.length && !confirm(`У черзі ${Sync.queue.length} невідправлених змін. Вони залишаться для поточної таблиці. Продовжити?`)) return;
     closePanels();
-    if (!Auth.getToken()) {
-      try { await Auth.signIn(); } catch (err) { toast(err.message); return; }
-    }
+    if (!Auth.getToken()) { Auth.signIn('setup').catch((err) => toast(err.message)); return; }
     goSetup();
   }
   if (act === 'logout') {
@@ -619,9 +644,7 @@ function deleteWallet() {
 /* ------------------------- вхід і вибір таблиці -------------------------- */
 function onLogin() {
   $('#loginError').hidden = true;
-  Auth.signIn()
-    .then(goSetup)
-    .catch((e) => { $('#loginError').textContent = e.message; $('#loginError').hidden = false; });
+  Auth.signIn('setup').catch((e) => { $('#loginError').textContent = e.message; $('#loginError').hidden = false; });
 }
 
 async function goSetup() {
@@ -721,6 +744,11 @@ function bindUI() {
   $('#backdrop').onclick = closePanels;
   $$('[data-close]').forEach((b) => { b.onclick = closePanels; });
   window.addEventListener('popstate', hidePanels);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', fitSheet);
+    window.visualViewport.addEventListener('scroll', fitSheet);
+  }
+  document.addEventListener('focusin', keepFocusedVisible);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#backdrop').hidden) closePanels(); });
 
   $('#txForm').onsubmit = saveTx;
@@ -765,11 +793,7 @@ function bindUI() {
   $('#wDelete').onclick = deleteWallet;
   $('#curList').innerHTML = CONFIG.CURRENCIES.map((c) => `<option value="${esc(c)}">`).join('');
 
-  $('#authBtn').onclick = () => {
-    Auth.signIn()
-      .then(() => { showAuthBanner(false); Sync.run(); })
-      .catch((e) => toast(e.message, 4000));
-  };
+  $('#authBtn').onclick = () => { Auth.signIn('resume').catch((e) => toast(e.message, 4000)); };
 
   window.addEventListener('online', () => Sync.run());
   document.addEventListener('visibilitychange', () => {
@@ -793,12 +817,17 @@ function start() {
   }
   if (!CONFIG.CLIENT_ID) $('#loginWarn').hidden = false;
   Auth.load();
-  Auth.ready().then(() => Auth.init()).catch((e) => {
-    $('#loginError').textContent = e.message;
-    $('#loginError').hidden = false;
-  });
+  const r = Auth.handleRedirect();
   const sid = LS.get('ms_sheet', null);
-  if (sid) openSheet(sid); else show('login');
+  if (r?.error) {
+    $('#loginError').textContent = r.error;
+    $('#loginError').hidden = false;
+  }
+  if (r && !r.error && (r.intent === 'setup' || !sid)) { goSetup(); return; }
+  if (sid) {
+    openSheet(sid);
+    if (r?.error) toast(r.error, 5000);
+  } else show('login');
 }
 
 start();

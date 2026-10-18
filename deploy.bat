@@ -73,6 +73,8 @@ rem make sure the branch is called main
 git branch -M main >nul 2>nul
 
 rem ---------- 5. push ----------
+set "RETRY=0"
+:push
 echo [4/5] Pushing to GitHub - a browser window may open for sign-in...
 git push -u origin main
 if not errorlevel 1 goto :pushed
@@ -127,15 +129,45 @@ pause
 exit /b 0
 
 :access_problem
-echo [ERROR] GitHub answers "Repository not found" for %OWNER_REPO%.
-echo         The repo exists, so Git is most likely signed in as ANOTHER GitHub
-echo         account - for example a work account saved on this PC.
 echo.
-echo  Fix:
-echo   1. See saved accounts:     git credential-manager github list
-echo   2. Remove the wrong one:   git credential-manager github logout ^<account^>
-echo      or delete "git:https://github.com" in Windows Credential Manager.
-echo   3. Run deploy.bat again and sign in as %GH_USER% in the browser.
+echo [CHECK] Trying to read the repo anonymously, without saved credentials...
+set "GIT_TERMINAL_PROMPT=0"
+git -c credential.helper= ls-remote "https://github.com/%OWNER_REPO%.git" >nul 2>nul
+set "ANON=%ERRORLEVEL%"
+set "GIT_TERMINAL_PROMPT="
+if not "%ANON%"=="0" goto :repo_unreachable
+
+echo [RESULT] The repo is public and reachable, so the SAVED GitHub credentials
+echo          on this PC are the problem - they belong to another account or are
+echo          a token without access to this repository.
+if "%RETRY%"=="1" goto :creds_manual
+echo.
+choice /c YN /m "Remove saved GitHub credentials and sign in again as %GH_USER%"
+if errorlevel 2 goto :creds_manual
+git credential-manager github logout %GH_USER% >nul 2>nul
+(echo protocol=https& echo host=github.com& echo username=%GH_USER%& echo.) | git credential reject
+(echo protocol=https& echo host=github.com& echo.) | git credential reject
+cmdkey /delete:git:https://github.com >nul 2>nul
+cmdkey /delete:git:https://%GH_USER%@github.com >nul 2>nul
+set "RETRY=1"
+echo        Saved credentials removed. Retrying - sign in as %GH_USER% in the browser.
+echo.
+goto :push
+
+:creds_manual
+echo.
+echo  Do it manually:
+echo   1. Control Panel - Credential Manager - Windows Credentials:
+echo      delete every entry that starts with "git:https://github.com"
+echo   2. Run deploy.bat again and sign in as %GH_USER% in the browser.
+goto :fail
+
+:repo_unreachable
+echo [RESULT] Even anonymous access fails. Check that:
+echo   - the repository name is exactly %OWNER_REPO%
+echo   - it is Public, or you sign in with an account that has access
+echo   - github.com is not blocked by a proxy / corporate network on this PC
+echo     try:  https://github.com/%OWNER_REPO%  in the browser of THIS PC
 goto :fail
 
 :fail

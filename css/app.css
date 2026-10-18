@@ -275,14 +275,6 @@ code { font-size: .9em; }
 .sheet-head h2 { flex: 1; }
 #txSheet .sheet-head h2 { text-align: center; font-size: 18px; }
 
-/* 1.2.5 — фіксована верхня стрічка панелей на телефоні */
-@media (max-width: 699px) {
-  .sheet { padding-top: calc(var(--safe-t) + 64px); }
-  .sheet-head {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 23; max-width: 640px; margin: 0 auto;
-    padding: calc(var(--safe-t) + 8px) 16px 8px; min-height: calc(var(--safe-t) + 60px);
-    background: var(--bg); border-bottom: 1px solid var(--line);
-    will-change: transform;
-  }
-  .sheet input, .sheet textarea, .sheet select { scroll-margin-top: 80px; }
-}
+/* червона кнопка закриття форми запису — в стилі кнопки «Зберегти» */
+.btn.cancel { background: var(--danger); color: #fff; box-shadow: none; min-width: 46px; font-size: 18px; line-height: 1; }
+@media (prefers-color-scheme: dark) { .btn.cancel { color: #2a0b0b; } }

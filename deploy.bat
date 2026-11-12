@@ -27,14 +27,20 @@ if errorlevel 1 (
 )
 
 findstr /c:"CLIENT_ID: ''" "js\config.js" >nul 2>nul
-if not errorlevel 1 (
-  echo [WARN] CLIENT_ID in js\config.js is empty. The site will deploy,
-  echo        but Google sign-in will not work until you set it. See README.md.
-  echo.
-)
+if errorlevel 1 goto :client_ok
+echo [STOP] CLIENT_ID in js\config.js is empty. Publishing this would break
+echo        Google sign-in for everyone who uses the app.
+echo        If this folder was unpacked from a zip archive, it is only a backup copy:
+echo        run deploy.bat from the original project folder instead.
+echo.
+choice /c YN /d N /t 30 /m "Publish anyway"
+if errorlevel 2 goto :fail
+:client_ok
 
+set "NEWREPO=0"
 if exist ".git" goto :repo_ready
 echo [1/5] Initializing git repository...
+set "NEWREPO=1"
 git init >nul || goto :fail
 git symbolic-ref HEAD refs/heads/main
 :repo_ready
@@ -81,6 +87,7 @@ if not errorlevel 1 goto :pushed
 echo.
 git ls-remote origin >nul 2>nul
 if errorlevel 1 goto :access_problem
+if "%NEWREPO%"=="1" goto :wrong_folder
 echo [INFO] Push rejected - remote has commits that are not here. Merging them...
 git pull origin main --allow-unrelated-histories --no-edit || goto :fail
 git push -u origin main || goto :fail
@@ -168,6 +175,19 @@ echo   - the repository name is exactly %OWNER_REPO%
 echo   - it is Public, or you sign in with an account that has access
 echo   - github.com is not blocked by a proxy / corporate network on this PC
 echo     try:  https://github.com/%OWNER_REPO%  in the browser of THIS PC
+goto :fail
+
+:wrong_folder
+rem a fresh copy must never be merged into the published history
+rmdir /s /q ".git" >nul 2>nul
+echo [STOP] GitHub already has the published app, but this folder has no git
+echo        history - it looks like a copy unpacked from a zip archive.
+echo        Nothing was published and nothing on GitHub was changed.
+echo.
+echo        Run deploy.bat from the original project folder
+echo        (the one that already contains the hidden .git folder).
+echo        On a new PC, get the project first:
+echo          git clone https://github.com/%OWNER_REPO%.git
 goto :fail
 
 :fail

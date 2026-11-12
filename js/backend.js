@@ -145,11 +145,22 @@ const Auth = {
     return CONFIG.REDIRECT_URI || (location.origin + this.canonicalPath());
   },
 
-  // Переходить на сторінку входу Google. intent — що робити після повернення: 'setup' | 'resume'
-  signIn(intent = 'resume') {
+  // Чи можна спробувати тихо продовжити сесію (без участі користувача)
+  canSilent() {
+    if (!CONFIG.CLIENT_ID || !this.email || !navigator.onLine) return false;
+    const now = Date.now();
+    if (now - LS.get('ms_silent_fail', 0) < 12 * 3600 * 1000) return false; // Google вже відмовив — чекаємо ручного входу
+    if (now - LS.get('ms_silent_try', 0) < 60 * 1000) return false;         // захист від зациклення
+    return true;
+  },
+
+  // Переходить на сторінку входу Google. intent — що робити після повернення: 'setup' | 'resume'.
+  // silent = true: prompt=none — Google одразу повертає назад з новим токеном, якщо сесія жива,
+  // або з помилкою interaction_required, якщо потрібна участь користувача.
+  signIn(intent = 'resume', silent = false) {
     if (!CONFIG.CLIENT_ID) return Promise.reject(new Error('Не вказано CLIENT_ID у js/config.js'));
     const state = U.uid('s');
-    LS.set('ms_oauth', { state, intent, ts: Date.now() });
+    LS.set('ms_oauth', { state, intent, silent, ts: Date.now() });
     const p = new URLSearchParams({
       client_id: CONFIG.CLIENT_ID,
       redirect_uri: this.redirectUri(),
@@ -159,28 +170,39 @@ const Auth = {
       state,
     });
     if (this.email) p.set('login_hint', this.email);
-    else p.set('prompt', 'select_account');
+    if (silent) { p.set('prompt', 'none'); LS.set('ms_silent_try', Date.now()); }
+    else if (!this.email) p.set('prompt', 'select_account');
     location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + p.toString());
     return new Promise(() => {}); // сторінка йде на Google
   },
 
   // Викликається при старті: забирає токен з #access_token=... після повернення від Google
   handleRedirect() {
-    const hash = location.hash.slice(1);
-    if (!/(^|&)(access_token|error)=/.test(hash)) return null;
-    const h = new URLSearchParams(hash);
-    history.replaceState(null, '', location.pathname + location.search);
+    let raw = location.hash.slice(1);
+    if (!/(^|&)(access_token|error)=/.test(raw)) {
+      raw = location.search.slice(1); // деякі помилки Google повертає в рядку запиту
+      if (!/(^|&)error=/.test(raw) || !/(^|&)state=/.test(raw)) return null;
+    }
+    const h = new URLSearchParams(raw);
+    history.replaceState(null, '', location.pathname);
     const saved = LS.get('ms_oauth', null);
     LS.del('ms_oauth');
     if (!saved || saved.state !== h.get('state')) return { error: 'Не вдалося завершити вхід, спробуйте ще раз' };
-    if (h.get('error')) return { error: h.get('error') === 'access_denied' ? 'Вхід скасовано' : 'Помилка входу: ' + h.get('error'), intent: saved.intent };
+    if (h.get('error')) {
+      if (saved.silent) { // тихе продовження не вдалося — потрібен звичайний вхід
+        LS.set('ms_silent_fail', Date.now());
+        return { silentFailed: true, intent: saved.intent };
+      }
+      return { error: h.get('error') === 'access_denied' ? 'Вхід скасовано' : 'Помилка входу: ' + h.get('error'), intent: saved.intent };
+    }
     if (!(h.get('scope') || '').includes('drive.file')) {
       return { error: 'Потрібно дозволити доступ до файлів, створених додатком', intent: saved.intent };
     }
     this.token = h.get('access_token');
     this.exp = Date.now() + (Number(h.get('expires_in')) || 3600) * 1000;
     this.save();
-    return { intent: saved.intent };
+    LS.del('ms_silent_fail'); LS.del('ms_silent_try');
+    return { intent: saved.intent, silent: !!saved.silent };
   },
 
   signOut() {
@@ -189,6 +211,7 @@ const Auth = {
     }
     this.token = null; this.exp = 0; this.email = '';
     this.save();
+    LS.del('ms_silent_fail'); LS.del('ms_silent_try');
   },
 };
 

@@ -145,6 +145,7 @@ function hidePanels() {
   $('#backdrop').hidden = true;
   $('#contactSug').hidden = true;
   unlockBody();
+  if (S.sheetId && !DEMO && !Auth.getToken() && !$('#authBanner').hidden && Auth.canSilent()) setTimeout(needAuth, 0);
 }
 function closePanels() {
   if (history.state?.panel) history.back(); // popstate сховає панелі
@@ -206,6 +207,20 @@ function updatePending() {
 }
 function showAuthBanner(on) { $('#authBanner').hidden = !on; }
 
+/* Сесія Google живе 1 годину. Коли вона спливла — тихо продовжуємо її: сторінка
+   на мить переходить на Google і одразу повертається. Якщо Google вимагає участі
+   користувача (або відкрита форма з незбереженим вводом) — показуємо смужку «Увійти». */
+function needAuth() {
+  const formOpen = !$('#backdrop').hidden;
+  if (!DEMO && !formOpen && Auth.canSilent()) {
+    setStatus('sync', 'Продовжую сесію Google…');
+    Auth.signIn('resume', true);
+    return;
+  }
+  showAuthBanner(true);
+  setStatus('auth');
+}
+
 const Sync = {
   queue: [], running: false, again: false, timer: null,
 
@@ -222,7 +237,7 @@ const Sync = {
 
   async step() {
     if (!S.backend) return;
-    if (!DEMO && !Auth.getToken()) { showAuthBanner(true); setStatus('auth'); return; }
+    if (!DEMO && !Auth.getToken()) { needAuth(); return; }
     setStatus('sync');
     while (this.queue.length) {
       const op = this.queue[0];
@@ -243,7 +258,7 @@ const Sync = {
   fail(e, op) {
     console.warn('sync error', e);
     if (op) { op.attempts = (op.attempts || 0) + 1; this.save(); }
-    if (e instanceof AuthError) { showAuthBanner(true); setStatus('auth'); return false; }
+    if (e instanceof AuthError) { needAuth(); return false; }
     if (e instanceof NetError || !navigator.onLine) { setStatus('offline'); this.later(); return false; }
     if (op && op.attempts >= 3) {
       this.queue.shift(); this.save();
@@ -734,7 +749,7 @@ function openSheet(id) {
   render();
   updatePending();
   if (DEMO || Auth.getToken()) { showAuthBanner(false); Sync.run(); }
-  else { showAuthBanner(true); setStatus('auth'); }
+  else needAuth();
 }
 
 /* -------------------------------- події ---------------------------------- */
@@ -825,7 +840,7 @@ function bindUI() {
   window.addEventListener('online', () => Sync.run());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible' || !S.sheetId) return;
-    if (!DEMO && !Auth.getToken()) { showAuthBanner(true); setStatus('auth'); return; }
+    if (!DEMO && !Auth.getToken()) { needAuth(); return; }
     if (Sync.queue.length || Date.now() - S.loadedAt > 60000) Sync.run();
   });
 }
@@ -865,7 +880,7 @@ function start() {
     $('#loginError').textContent = r.error;
     $('#loginError').hidden = false;
   }
-  if (r && !r.error && (r.intent === 'setup' || !sid)) { goSetup(); return; }
+  if (r && !r.error && !r.silentFailed && (r.intent === 'setup' || !sid)) { goSetup(); return; }
   if (sid) {
     openSheet(sid);
     if (r?.error) toast(r.error, 5000);

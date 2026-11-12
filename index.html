@@ -139,6 +139,23 @@
     <div id="settingsBody"></div>
   </div>
 
+  <div id="reportSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="repTitle" hidden>
+    <div class="sheet-grip"></div>
+    <div class="sheet-head"><h2 id="repTitle">Звіт</h2><button class="icon-btn" data-close aria-label="Закрити">✕</button></div>
+    <div class="rchips" id="repRanges">
+      <button type="button" class="rchip" data-range="this">Цей місяць</button>
+      <button type="button" class="rchip" data-range="prev">Минулий місяць</button>
+      <button type="button" class="rchip" data-range="year">Цей рік</button>
+      <button type="button" class="rchip" data-range="all">Весь час</button>
+    </div>
+    <div class="row2">
+      <label class="field"><span>Від</span><input type="date" id="rFrom"></label>
+      <label class="field"><span>До</span><input type="date" id="rTo"></label>
+    </div>
+    <label class="field rep-wallet"><span>Гаманець</span><select id="rWallet"></select></label>
+    <div id="reportBody"></div>
+  </div>
+
   <div id="walletSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="wTitle" hidden>
     <div class="sheet-grip"></div>
     <div class="sheet-head"><h2 id="wTitle">Гаманець</h2><button class="icon-btn" data-close aria-label="Закрити">✕</button></div>

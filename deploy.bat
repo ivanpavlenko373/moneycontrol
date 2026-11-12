@@ -19,6 +19,23 @@ echo.
 echo === MoneyControl deploy ===
 echo.
 
+rem ---------- 0. started from an unpacked zip copy? ----------
+rem The real project folder (with git history) is MAIN. If this copy is somewhere
+rem else, copy its files into MAIN and continue the deploy from there.
+set "MAIN=%USERPROFILE%\Desktop\My home projects\MoneyControl"
+if not exist "%MAIN%\.git" set "MAIN=C:\Users\Ivan Pavlenko\Desktop\My home projects\MoneyControl"
+if /i "%CD%"=="%MAIN%" goto :in_main
+if not exist "%MAIN%\.git" goto :in_main
+echo [INFO] This folder is a copy from a zip archive.
+echo        Updating the main project folder and publishing from it:
+echo        %MAIN%
+echo.
+rem js\config.js is never copied: the main folder keeps its own Client ID
+robocopy "%~dp0." "%MAIN%" /E /XD .git /XF config.js /NFL /NDL /NJH /NJS /NP >nul
+if errorlevel 8 goto :copy_failed
+cd /d "%MAIN%"
+:in_main
+
 rem ---------- 1. git ----------
 where git >nul 2>nul
 if errorlevel 1 (
@@ -87,7 +104,12 @@ if not errorlevel 1 goto :pushed
 echo.
 git ls-remote origin >nul 2>nul
 if errorlevel 1 goto :access_problem
-if "%NEWREPO%"=="1" goto :wrong_folder
+if "%NEWREPO%"=="1" goto :copy_failed
+echo [ERROR] Could not copy the files into the main project folder:
+echo         %MAIN%
+goto :fail
+
+:wrong_folder
 echo [INFO] Push rejected - remote has commits that are not here. Merging them...
 git pull origin main --allow-unrelated-histories --no-edit || goto :fail
 git push -u origin main || goto :fail
@@ -184,6 +206,8 @@ echo [STOP] GitHub already has the published app, but this folder has no git
 echo        history - it looks like a copy unpacked from a zip archive.
 echo        Nothing was published and nothing on GitHub was changed.
 echo.
+echo        The main project folder was not found on this PC:
+echo          %MAIN%
 echo        Run deploy.bat from the original project folder
 echo        (the one that already contains the hidden .git folder).
 echo        On a new PC, get the project first:

@@ -565,6 +565,9 @@ function openSettings() {
   const wallets = [...S.wallets].sort((a, c) => a.archived - c.archived);
   $('#settingsBody').innerHTML = `
     <section class="set-sec">
+      <button class="btn primary" data-act="report">Звіт за період</button>
+    </section>
+    <section class="set-sec">
       <h3>Гаманці</h3>
       <div class="wlist">${wallets.map((w) => `
         <button class="wrow" data-wedit="${esc(w.name)}">
@@ -603,6 +606,7 @@ async function onSettingsClick(e) {
   if (w) { openWalletEdit(walletBy(w.dataset.wedit)); return; }
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (!act) return;
+  if (act === 'report') openReport();
   if (act === 'wadd') openWalletEdit(null);
   if (act === 'reload') { closePanels(); Sync.run(); }
   if (act === 'demoreset') {
@@ -624,6 +628,98 @@ async function onSettingsClick(e) {
     closePanels();
     show('login');
   }
+}
+
+/* ---------------------------------- звіт ---------------------------------- */
+const isoOf = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+function reportRange(kind) {
+  const n = new Date(), y = n.getFullYear(), m = n.getMonth();
+  if (kind === 'prev') return [isoOf(new Date(y, m - 1, 1)), isoOf(new Date(y, m, 0))];
+  if (kind === 'year') return [`${y}-01-01`, `${y}-12-31`];
+  if (kind === 'all') {
+    const dates = S.txns.map((t) => t.date).sort();
+    const today = U.todayIso();
+    return [dates[0] || today, dates.length && dates[dates.length - 1] > today ? dates[dates.length - 1] : today];
+  }
+  return [isoOf(new Date(y, m, 1)), isoOf(new Date(y, m + 1, 0))]; // цей місяць
+}
+function setReportRange(kind) {
+  const [from, to] = reportRange(kind);
+  $('#rFrom').value = from; $('#rTo').value = to;
+  $$('#repRanges .rchip').forEach((b) => b.classList.toggle('on', b.dataset.range === kind));
+}
+
+function openReport() {
+  $('#rWallet').innerHTML = '<option value="">Усі гаманці</option>' +
+    S.wallets.map((w) => `<option value="${esc(w.name)}">${esc(w.name)} (${esc(sym(w.currency))})</option>`).join('');
+  if (S.filter !== 'all' && walletBy(S.filter)) $('#rWallet').value = S.filter;
+  setReportRange('this');
+  renderReport();
+  openPanel($('#reportSheet'));
+}
+
+// Зведення за період: по кожній валюті — підсумки і суми по контактах
+function buildReport(from, to, wallet) {
+  const res = new Map(); // валюта -> { inc, exp, n, in: Map, out: Map }
+  let transfers = 0;
+  for (const t of S.txns) {
+    if (t.date < from || t.date > to) continue;
+    if (wallet && t.wallet !== wallet && !(t.type === 'tr' && t.toWallet === wallet)) continue;
+    if (t.type === 'tr') { transfers++; continue; }
+    const cur = curOf(t.wallet);
+    if (!res.has(cur)) res.set(cur, { inc: 0, exp: 0, n: 0, in: new Map(), out: new Map() });
+    const r = res.get(cur);
+    const name = t.contact || '';
+    const side = t.type === 'in' ? r.in : r.out;
+    const key = name.toLowerCase();
+    if (!side.has(key)) side.set(key, { name, sum: 0, n: 0 });
+    const c = side.get(key);
+    c.sum += t.amount; c.n++; r.n++;
+    if (t.type === 'in') r.inc += t.amount; else r.exp += t.amount;
+  }
+  return { res, transfers };
+}
+
+function renderReport() {
+  let from = $('#rFrom').value, to = $('#rTo').value;
+  const body = $('#reportBody');
+  if (!from || !to) { body.innerHTML = '<div class="empty">Вкажіть обидві дати періоду</div>'; return; }
+  if (from > to) [from, to] = [to, from];
+  const { res, transfers } = buildReport(from, to, $('#rWallet').value);
+  const fmtD = (iso) => iso.split('-').reverse().join('.');
+  const head = `<div class="rep-period">${fmtD(from)} — ${fmtD(to)}</div>`;
+  if (!res.size) {
+    body.innerHTML = head + `<div class="empty">За цей період надходжень і витрат немає${transfers ? `.<br>Переказів між гаманцями: ${transfers}` : ''}</div>`;
+    return;
+  }
+  const curs = [...res.keys()].sort((a, c) => (a === CONFIG.DEFAULT_CURRENCY ? -1 : c === CONFIG.DEFAULT_CURRENCY ? 1 : a.localeCompare(c)));
+  const list = (title, map, cls, sign, cur) => {
+    const rows = [...map.values()].sort((a, c) => c.sum - a.sum);
+    if (!rows.length) return '';
+    return `<h3>${title}</h3><div class="wlist">${rows.map((c) => `
+      <div class="rrow"><span class="rname">${c.name ? esc(c.name) : '<i>Без контакту</i>'}<small>${c.n} ${plural(c.n)}</small></span>
+      <span class="amt ${cls}">${sign}${money(c.sum, cur)}</span></div>`).join('')}</div>`;
+  };
+  body.innerHTML = head + curs.map((cur) => {
+    const r = res.get(cur);
+    const diff = Math.round((r.inc - r.exp) * 100) / 100;
+    return `<section class="rep-cur">
+      ${curs.length > 1 ? `<div class="rep-curname">${esc(cur)}</div>` : ''}
+      <div class="rep-total">
+        <div><span>Надійшло</span><b class="pos">+${money(r.inc, cur)}</b></div>
+        <div><span>Видано</span><b class="neg">−${money(r.exp, cur)}</b></div>
+        <div class="rep-diff"><span>Різниця</span><b class="${diff < 0 ? 'neg' : ''}">${diff < 0 ? '−' : '+'}${money(Math.abs(diff), cur)}</b></div>
+      </div>
+      ${list('Отримано від', r.in, 'pos', '+', cur)}
+      ${list('Надано кому', r.out, 'neg', '−', cur)}
+    </section>`;
+  }).join('') + (transfers ? `<p class="ver">Перекази між власними гаманцями (${transfers}) у звіті не враховуються.</p>` : '');
+}
+function plural(n) {
+  const a = n % 10, b = n % 100;
+  if (a === 1 && b !== 11) return 'запис';
+  if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return 'записи';
+  return 'записів';
 }
 
 /* ------------------------------ форма гаманця ---------------------------- */
@@ -831,6 +927,11 @@ function bindUI() {
   });
 
   $('#settingsBody').onclick = onSettingsClick;
+  $('#repRanges').onclick = (e) => { const b = e.target.closest('[data-range]'); if (b) { setReportRange(b.dataset.range); renderReport(); } };
+  const repManual = () => { $$('#repRanges .rchip').forEach((b) => b.classList.remove('on')); renderReport(); };
+  $('#rFrom').onchange = repManual;
+  $('#rTo').onchange = repManual;
+  $('#rWallet').onchange = renderReport;
   $('#wForm').onsubmit = saveWallet;
   $('#wDelete').onclick = deleteWallet;
   $('#curList').innerHTML = CONFIG.CURRENCIES.map((c) => `<option value="${esc(c)}">`).join('');
